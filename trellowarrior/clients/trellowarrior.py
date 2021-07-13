@@ -36,8 +36,10 @@ class TrelloWarriorClient:
         if project.only_my_cards:
             new_trello_card.assign(self.trello_client.whoami)
         taskwarrior_task['trelloid'] = new_trello_card.id
+        #Display URL by using trellourl uda instead of annotating
+        taskwarrior_task['trellourl'] = new_trello_card.short_url
         taskwarrior_task.save()
-        taskwarrior_task.add_annotation('[Trello URL] {}'.format(new_trello_card.short_url))
+        #taskwarrior_task.add_annotation('[Trello URL] {}'.format(new_trello_card.short_url))
         logger.info('Taskwarrior task with ID {} saved as new card in Trello with ID {}'.format(taskwarrior_task['id'], new_trello_card.id))
 
     def fetch_trello_card(self, project, list_name, trello_card):
@@ -58,8 +60,9 @@ class TrelloWarriorClient:
                 new_taskwarrior_task['tags'].add(label.name)
         new_taskwarrior_task['trelloid'] = trello_card.id
         new_taskwarrior_task['trellolistname'] = list_name
+        new_taskwarrior_task['trellourl'] = trello_card.short_url
         new_taskwarrior_task.save()
-        new_taskwarrior_task.add_annotation('[Trello URL] {}'.format(trello_card.short_url))
+        #new_taskwarrior_task.add_annotation('[Trello URL] {}'.format(trello_card.short_url))
         if trello_card.description:
             new_taskwarrior_task.add_annotation('[Trello Description] {}'.format(trello_card.description))
         logger.info('Trello card with ID {} saved as new task in Taskwarrior with ID {}'.format(trello_card.id, new_taskwarrior_task['id']))
@@ -81,6 +84,11 @@ class TrelloWarriorClient:
         """
         taskwarrior_task_modified = False # Change to true to save modification
         # Task description <> Trello card name
+        # Use trellourl in UDA
+        if taskwarrior_task['trellourl'] != trello_card.short_url:
+            taskwarrior_task['trellourl'] = trello_card.short_url
+            taskwarrior_task_modified = True
+            logger.info('Task {} URL synchronized'.format(taskwarrior_task['id']))
         if taskwarrior_task['description'] != trello_card.name:
             if taskwarrior_task['modified'] > trello_card.date_last_activity:
                 # Taskwarrior data is newer
@@ -184,26 +192,28 @@ class TrelloWarriorClient:
             logger.info('All changes in Taskwarrior task {} saved'.format(taskwarrior_task['id']))
         # Task annotations <> Trello url and description
         # WARNING: The task must be saved before play with annotations https://tasklib.readthedocs.io/en/latest/#working-with-annotations
-        taskwarrior_task_annotation_trello_url = None
+        #taskwarrior_task_annotation_trello_url = None
         taskwarrior_task_annotation_trello_description = [None, '']
         if taskwarrior_task['annotations']:
             for annotation in taskwarrior_task['annotations']:
                 # Look for Trello url
                 if annotation['description'][0:13].lower() == '[trello url] ':
                     taskwarrior_task_annotation_trello_url = annotation
+                    taskwarrior_task_annotation_trello_url.remove()
+                    logger.info('Annotation of URL of task {} removed'.format(taskwarrior_task['id']))
                 # Look for Trello description
                 if annotation['description'][0:21].lower() == '[trello description] ':
                     taskwarrior_task_annotation_trello_description = [annotation, annotation['description'][21:]]
-        if taskwarrior_task_annotation_trello_url is None:
+        #if taskwarrior_task_annotation_trello_url is None:
             # No previous url annotated
-            taskwarrior_task.add_annotation('[Trello URL] {}'.format(trello_card.short_url))
-            logger.info('URL of task {} added'.format(taskwarrior_task['id']))
-        elif taskwarrior_task_annotation_trello_url['description'][13:] != trello_card.short_url:
+        #    taskwarrior_task.add_annotation('[Trello URL] {}'.format(trello_card.short_url))
+        #    logger.info('URL of task {} added'.format(taskwarrior_task['id']))
+        #elif taskwarrior_task_annotation_trello_url['description'][13:] != trello_card.short_url:
             # Cannot update annotations (see https://github.com/robgolding/tasklib/issues/91)
             # Delete old URL an add the new one
-            taskwarrior_task_annotation_trello_url.remove()
-            taskwarrior_task.add_annotation('[Trello URL] {}'.format(trello_card.short_url))
-            logger.info('URL of task {} synchronized'.format(taskwarrior_task['id']))
+            #taskwarrior_task_annotation_trello_url.remove()
+            #taskwarrior_task.add_annotation('[Trello URL] {}'.format(trello_card.short_url))
+            #logger.info('URL of task {} synchronized'.format(taskwarrior_task['id']))
         if taskwarrior_task_annotation_trello_description[1] != trello_card.description:
             if taskwarrior_task['modified'] > trello_card.date_last_activity:
                 # Taskwarrior data is newer
